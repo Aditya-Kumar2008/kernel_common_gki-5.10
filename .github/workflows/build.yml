@@ -30,6 +30,7 @@ jobs:
       - name: Build kernel
         run: |
           make -j$(nproc) 2>&1 | tail -100
+          ls -la out/arch/arm64/boot/
 
       - name: Create AnyKernel3 flashable ZIP
         run: |
