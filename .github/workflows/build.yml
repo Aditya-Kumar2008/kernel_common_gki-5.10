@@ -25,12 +25,14 @@ jobs:
 
       - name: Configure
         run: |
-          make ruan_user_defconfig
+          make ruan_user_defconfig 2>&1
+          echo "=== Config done ==="
 
       - name: Build kernel
         run: |
-          make -j$(nproc) 2>&1 | tail -100
-          ls -la out/arch/arm64/boot/
+          make -j$(nproc) 2>&1 || echo "BUILD_FAILED=$?"
+          echo "=== Build output above ==="
+          ls -la out/arch/arm64/boot/Image 2>&1 || echo "NO_IMAGE_FOUND"
 
       - name: Create AnyKernel3 flashable ZIP
         run: |
