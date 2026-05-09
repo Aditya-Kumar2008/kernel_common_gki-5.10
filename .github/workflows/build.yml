@@ -1,0 +1,45 @@
+name: Build Kernel
+
+on:
+  push:
+    branches:
+      - ruan-kernel-port
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flex bison libssl-dev build-essential gcc-aarch64-linux-gnu binutils-arm-linux-gnueabihf
+
+      - name: Initialize submodules
+        run: |
+          git submodule update --init --recursive
+
+      - name: Configure
+        run: |
+          make ruan_user_defconfig
+
+      - name: Build kernel
+        run: |
+          make -j$(nproc) 2>&1 | tail -100
+
+      - name: Create AnyKernel3 flashable ZIP
+        run: |
+          cp out/arch/arm64/boot/Image AnyKernel3/
+          cd AnyKernel3
+          zip -r ../ruan-kernel-${{ github.sha }}.zip *
+          ls -la ../ruan-kernel-*.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruan-kernel
+          path: ruan-kernel-*.zip
