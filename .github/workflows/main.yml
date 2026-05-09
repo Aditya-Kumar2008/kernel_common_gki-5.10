@@ -1,38 +1,52 @@
 name: Ruan Custom Kernel Grand Build
 on:
-  workflow_dispatch: # Manual Button
+  workflow_dispatch: # Manual Button to start build
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 1. Clean Cloud Space
+      - name: 1. Server Space Cleanup
         run: |
+          # Compilation ke liye space banana zaroori hai
           sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android
           df -h
 
-      - name: 2. Checkout Source
+      - name: 2. Checkout Source Code
         uses: actions/checkout@v4
         with:
-          ref: ruan-kernel-port # Tera wahi branch jisme MiniMax ne push kiya hai
+          ref: ruan-kernel-port # MiniMax ne isi branch pe saare fixes push kiye hain
+          fetch-depth: 1
 
-      - name: 3. Install Toolchain (AOSP Clang 18)
+      - name: 3. Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential flex git libssl-dev libelf-dev binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi python3 zip
+
+      - name: 4. Setup AOSP Clang (r522817)
         run: |
           mkdir -p $GITHUB_WORKSPACE/clang
+          # GKI Compliant Clang download kar rahe hain
           curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz
           tar -xf clang-r522817.tar.gz -C $GITHUB_WORKSPACE/clang
           echo "$GITHUB_WORKSPACE/clang/bin" >> $GITHUB_PATH
 
-      - name: 4. Start Compilation
+      - name: 5. Start Compilation
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
           export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
           
-          # Use the defconfig MiniMax created
-          make O=out vendor/ruan_user_defconfig
+          # Logic to ensure defconfig is found wherever it is
+          echo "Checking for ruan_user_defconfig..."
+          if [ -f "arch/arm64/configs/vendor/ruan_user_defconfig" ]; then
+            cp arch/arm64/configs/vendor/ruan_user_defconfig arch/arm64/configs/ruan_user_defconfig
+          fi
           
-          # Heavy Lift (2-Core Power)
+          # 1. Config Generate
+          make O=out ruan_user_defconfig
+          
+          # 2. Main Build Process (Heavy Lifting)
           make O=out -j$(nproc --all) \
                CC=clang \
                CROSS_COMPILE=aarch64-linux-gnu- \
@@ -42,21 +56,27 @@ jobs:
                NM=llvm-nm \
                OBJCOPY=llvm-objcopy \
                OBJDUMP=llvm-objdump \
-               STRIP=llvm-strip
+               STRIP=llvm-strip \
+               LLVM=1 \
+               LLVM_IAS=1
 
-      - name: 5. Prepare AnyKernel3 ZIP
+      - name: 6. AnyKernel3 Packaging (Flashable ZIP)
         run: |
-          # Kernel Image uthao
-          cp out/arch/arm64/boot/Image AnyKernel3/
-          
-          # Agar modules compile hue hain toh unhe bhi copy karo (GKI standard)
-          find out -name "*.ko" -exec cp {} AnyKernel3/modules/backup/ \;
-          
-          cd AnyKernel3
-          zip -r9 ../Ruan-Kernel-Flashable.zip * -x .git README.md
+          # Agar build success hui toh Image file AnyKernel folder mein dalo
+          if [ -f "out/arch/arm64/boot/Image" ]; then
+            cp out/arch/arm64/boot/Image AnyKernel3/
+            # Copy Compiled Modules (Kernel ka power house)
+            find out -name "*.ko" -exec cp {} AnyKernel3/modules/backup/ \;
+            
+            cd AnyKernel3
+            zip -r9 ../Poco-Pad-5G-Kernel-Flashable.zip * -x .git README.md *placeholder
+          else
+            echo "Error: Kernel Image not found! Build failed."
+            exit 1
+          fi
 
-      - name: 6. Upload Flashable ZIP
+      - name: 7. Upload Final ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Poco-Pad-5G-Kernel
-          path: Ruan-Kernel-Flashable.zip
+          name: Ruan-Kernel-v1.0
+          path: Poco-Pad-5G-Kernel-Flashable.zip
