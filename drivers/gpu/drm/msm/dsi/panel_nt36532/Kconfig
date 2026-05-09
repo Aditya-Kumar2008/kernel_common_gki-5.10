@@ -1,0 +1,5 @@
+config DRM_MSM_DSI_PANEL_NT36532
+tristate "NT36532 DSI Panel Driver"
+depends on DRM_MSM_DSI
+help
+  Driver for NT36532 DSI panel used in POCO PAD 5G (ruan)

@@ -1,0 +1,5 @@
+config XIAOMI_HALL
+tristate "Xiaomi Hall Sensor Driver"
+depends on INPUT
+help
+  Driver for Xiaomi hall sensor used in POCO PAD 5G (ruan) for lid detection
